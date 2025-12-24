@@ -7,24 +7,20 @@ function activate(context) {
     const boardProvider = new BoardProvider();
     vscode.window.registerTreeDataProvider('todoBoardLauncher', boardProvider);
 
-    // Watch for .board.json creations/deletions to refresh the view
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.board.json');
     watcher.onDidCreate(() => boardProvider.refresh());
     watcher.onDidDelete(() => boardProvider.refresh());
     watcher.onDidChange(() => boardProvider.refresh());
     context.subscriptions.push(watcher);
 
-    // Command to open preview
     context.subscriptions.push(
         vscode.commands.registerCommand('todoBoard.openPreview', openPreview)
     );
 
-    // Command to create new board
     context.subscriptions.push(
         vscode.commands.registerCommand('todoBoard.createBoard', createBoard)
     );
 
-    // Custom editor (Todo Board preview)
     context.subscriptions.push(
         vscode.window.registerCustomEditorProvider(
             'todoBoard.preview',
@@ -253,6 +249,15 @@ class TodoBoardEditor {
                         sendData();
                     }
                 }
+            } else if (msg.type === 'delete-card') {
+                const col = data.columns.find((c) => c.id === msg.columnId);
+                if (col) {
+                    const idx = col.cards.findIndex((c) => c.id === msg.cardId);
+                    if (idx !== -1) {
+                        col.cards.splice(idx, 1);
+                        dirty = true;
+                    }
+                }
             }
 
             if (dirty) {
@@ -331,12 +336,17 @@ class TodoBoardEditor {
     cursor: pointer;
     padding: 4px;
     border-radius: 3px;
-    opacity: 0.6;
+    opacity: 0; /* Hidden by default */
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 1.2em; /* Bigger icon */
+    transition: opacity 0.2s;
   }
-  .icon-btn:hover {
+  .column:hover .icon-btn {
+    opacity: 0.6;
+  }
+  .column:hover .icon-btn:hover {
     background: var(--vscode-toolbar-hoverBackground);
     opacity: 1;
   }
@@ -352,26 +362,47 @@ class TodoBoardEditor {
     border-radius: 4px;
     cursor: grab;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    group: card; /* for hover scoping if needed, though usually just .card:hover works */
   }
   .card:hover {
     background: var(--vscode-list-hoverBackground);
+  }
+  .card .delete-btn {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: var(--vscode-icon-foreground);
+      cursor: pointer;
+      font-size: 1.1em;
+      padding: 0 4px;
+  }
+  .card:hover .delete-btn {
+      opacity: 0.7;
+  }
+  .card .delete-btn:hover {
+      opacity: 1;
+      color: var(--vscode-errorForeground);
   }
   .column.dragover {
     outline: 2px dashed var(--vscode-focusBorder);
   }
   .add-card-btn {
-    margin-top: 8px;
     width: 100%;
-    padding: 6px;
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: none;
-    border-radius: 3px;
+    padding: 8px 10px;
+    background: transparent;
+    color: var(--vscode-textLink-foreground);
+    border: 1px dashed var(--vscode-input-border);
+    border-radius: 4px;
     cursor: pointer;
     text-align: left;
+    transition: background 0.2s;
   }
   .add-card-btn:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
+    background: var(--vscode-list-hoverBackground);
+    text-decoration: none;
   }
   .add-column-btn {
     min-width: 250px;
@@ -412,7 +443,7 @@ class TodoBoardEditor {
     board.innerHTML = "";
     
     // Add columns
-    state.columns.forEach(col => {
+    state.columns.forEach((col, index) => {
       const column = document.createElement("div");
       column.className = "column";
       
@@ -485,7 +516,23 @@ class TodoBoardEditor {
       col.cards.forEach(card => {
         const el = document.createElement("div");
         el.className = "card";
-        el.textContent = card.title;
+        
+        const span = document.createElement("span");
+        span.textContent = card.title;
+        el.appendChild(span);
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "delete-btn";
+        delBtn.innerHTML = "×";
+        delBtn.title = "Delete Card";
+        delBtn.onclick = (e) => {
+            e.stopPropagation(); // prevent drag start logic if clicked
+            if (confirm("Delete this item?")) {
+                vscode.postMessage({ type: "delete-card", columnId: col.id, cardId: card.id });
+            }
+        };
+        el.appendChild(delBtn);
+
         el.draggable = true;
 
         el.ondragstart = (e) => {
@@ -499,15 +546,18 @@ class TodoBoardEditor {
       
       column.appendChild(cardsContainer);
 
-      // Add Card Button
-      const addCardBtn = document.createElement("button");
-      addCardBtn.className = "add-card-btn";
-      addCardBtn.textContent = "+ Add a card";
-      addCardBtn.onclick = () => {
-          vscode.postMessage({ type: "add-card", columnId: col.id });
-      };
+      // Add Card Button (Only for first column)
+      if (index === 0) {
+        const addCardBtn = document.createElement("button");
+        addCardBtn.className = "add-card-btn";
+        addCardBtn.textContent = "+ Add Todo";
+        addCardBtn.onclick = () => {
+            vscode.postMessage({ type: "add-card", columnId: col.id });
+        };
+        cardsContainer.appendChild(addCardBtn);
+      }
       
-      column.appendChild(addCardBtn);
+      column.appendChild(cardsContainer);
 
       board.appendChild(column);
     });
