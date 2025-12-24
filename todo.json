@@ -1,0 +1,19 @@
+{
+    "columns": [
+        {
+            "id": "Ideas",
+            "title": "Ideas",
+            "cards": [{ "id": "task-1", "title": "Test Todo" }]
+        },
+        {
+            "id": "in-progress",
+            "title": "In Progress",
+            "cards": []
+        },
+        {
+            "id": "done",
+            "title": "Done",
+            "cards": []
+        }
+    ]
+}
