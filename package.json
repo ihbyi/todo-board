@@ -9,6 +9,8 @@
     "categories": [
         "Other"
     ],
+    "author": "ihbyi",
+    "publisher": "ihbyi",
     "main": "./extension.js",
     "contributes": {
         "viewsContainers": {
