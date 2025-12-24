@@ -479,9 +479,7 @@ class TodoBoardEditor {
       deleteBtn.innerHTML = "×";
       deleteBtn.title = "Delete Column";
       deleteBtn.onclick = () => {
-          if (confirm('Delete column "' + col.title + '"?')) {
-              vscode.postMessage({ type: "delete-column", columnId: col.id });
-          }
+          vscode.postMessage({ type: "delete-column", columnId: col.id });
       };
 
       header.appendChild(title);
@@ -527,9 +525,7 @@ class TodoBoardEditor {
         delBtn.title = "Delete Card";
         delBtn.onclick = (e) => {
             e.stopPropagation(); // prevent drag start logic if clicked
-            if (confirm("Delete this item?")) {
-                vscode.postMessage({ type: "delete-card", columnId: col.id, cardId: card.id });
-            }
+            vscode.postMessage({ type: "delete-card", columnId: col.id, cardId: card.id });
         };
         el.appendChild(delBtn);
 
