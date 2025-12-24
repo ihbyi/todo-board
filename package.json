@@ -6,69 +6,13 @@
     "engines": {
         "vscode": "^1.60.0"
     },
-    "categories": [
-        "Other"
-    ],
-    "author": "ihbyi",
-    "publisher": "ihbyi",
-    "main": "./extension.js",
-    "contributes": {
-        "viewsContainers": {
-            "activitybar": [
-                {
-                    "id": "todoBoard",
-                    "title": "Todo Board",
-                    "icon": "media/icon.svg"
-                }
-            ]
-        },
-        "views": {
-            "todoBoard": [
-                {
-                    "id": "todoBoardLauncher",
-                    "name": "My Boards"
-                }
-            ]
-        },
-        "customEditors": [
-            {
-                "viewType": "todoBoard.preview",
-                "displayName": "Todo Board",
-                "selector": [
-                    {
-                        "filenamePattern": "*.board.json"
-                    }
-                ]
-            }
-        ],
-        "commands": [
-            {
-                "command": "todoBoard.openPreview",
-                "title": "Open Todo Board"
-            },
-            {
-                "command": "todoBoard.createBoard",
-                "title": "Create New Board",
-                "icon": "$(add)"
-            }
-        ],
-        "menus": {
-            "view/title": [
-                {
-                    "command": "todoBoard.createBoard",
-                    "when": "view == todoBoardLauncher",
-                    "group": "navigation"
-                }
-            ]
-        }
-    },
     "scripts": {
         "lint": "eslint .",
         "pretest": "npm run lint",
         "test": "vscode-test"
     },
     "devDependencies": {
-        "@types/vscode": "^1.107.0",
+        "@types/vscode": "^1.60.0",
         "@types/mocha": "^10.0.10",
         "@types/node": "22.x",
         "eslint": "^9.39.1",
