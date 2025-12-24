@@ -559,7 +559,8 @@ class TodoBoardEditor {
         column.classList.remove("card-dragover");
       };
 
-      column.ondrop = () => {
+      column.ondrop = (e) => {
+        e.preventDefault();
         column.classList.remove("dragover");
         column.classList.remove("card-dragover");
         if (!dragged) return;
