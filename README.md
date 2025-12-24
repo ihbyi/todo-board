@@ -1,65 +1,44 @@
-# todo-board README
+# Todo Board for VS Code
 
-This is the README for your extension "todo-board". After writing up a brief description, we recommend including the following sections.
+A simple, native Kanban-style todo board extension for Visual Studio Code. Manage your tasks visually right inside your editor.
+
+![Todo Board Preview](media/preview.png)
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+-   **🗂️ Kanban Boards**: Create multiple boards to organize different projects. Boards are saved as human-readable `.board.json` files.
+-   **📝 Drag & Drop**: Intuitively reorganize your work.
+    -   **Reorder Cards**: Prioritize tasks by dragging them up or down.
+    -   **Move Cards**: Drag tasks between columns (e.g., from "Todo" to "Done").
+    -   **Reorder Columns**: Rearrange your workflow by dragging column headers.
+-   **🖱️ Drag-to-Scroll**: Navigate wide boards easily by clicking and dragging on the background (like a map).
+-   **💾 Auto-Save**: All changes (edits, moves, deletions) are saved instantly.
+-   **🎨 Native Look**: Styled to match your current VS Code theme perfectly.
 
-For example if there is an image subfolder under your extension project workspace:
+## Usage
 
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+1.  **Open the Board**: Click the "Todo Board" icon in the Activity Bar (left sidebar).
+2.  **Create a Board**: Click the `+` icon to create a new `.board.json` file.
+3.  **Manage Tasks**:
+    -   **Add Column**: Click "+ Add New Column" on the far right.
+    -   **Add Todo**: Click "+ Add Todo" in the first column.
+    -   **Edit**: Click on any column title to rename it.
+    -   **Delete**: Hover over a card or column header to reveal the `×` delete button.
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+This extension currently uses `.board.json` files located in your workspace to store data. You can commit these files to version control to share boards with your team.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+-   Ensure you have a workspace or folder open to create new boards.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
-
 ### 1.0.0
 
-Initial release of ...
+Initial release with:
 
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+-   Full drag-and-drop support (Cards & Columns).
+-   Drag-to-scroll navigation.
+-   Auto-saving and native VS Code theming.
