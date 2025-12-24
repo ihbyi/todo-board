@@ -4,17 +4,24 @@ const vscode = require('vscode');
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-    // Hidden sidebar view (exists ONLY to create Activity Bar icon)
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(
-            'todoBoardLauncher',
-            new HiddenLauncher()
-        )
-    );
+    const boardProvider = new BoardProvider();
+    vscode.window.registerTreeDataProvider('todoBoardLauncher', boardProvider);
+
+    // Watch for .board.json creations/deletions to refresh the view
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.board.json');
+    watcher.onDidCreate(() => boardProvider.refresh());
+    watcher.onDidDelete(() => boardProvider.refresh());
+    watcher.onDidChange(() => boardProvider.refresh());
+    context.subscriptions.push(watcher);
 
     // Command to open preview
     context.subscriptions.push(
         vscode.commands.registerCommand('todoBoard.openPreview', openPreview)
+    );
+
+    // Command to create new board
+    context.subscriptions.push(
+        vscode.commands.registerCommand('todoBoard.createBoard', createBoard)
     );
 
     // Custom editor (Todo Board preview)
@@ -33,28 +40,67 @@ function activate(context) {
 
 // ---------------- Launcher ----------------
 
-class HiddenLauncher {
-    resolveWebviewView() {
-        // As soon as the icon is clicked → open the board
-        vscode.commands.executeCommand('todoBoard.openPreview');
+class BoardProvider {
+    constructor() {
+        this._onDidChangeTreeData = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+    }
+
+    refresh() {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element) {
+        return element;
+    }
+
+    async getChildren(element) {
+        if (element) {
+            return [];
+        }
+
+        const files = await vscode.workspace.findFiles('**/*.board.json');
+        return files.map((uri) => {
+            const item = new vscode.TreeItem(
+                vscode.workspace.asRelativePath(uri),
+                vscode.TreeItemCollapsibleState.None
+            );
+            item.iconPath = new vscode.ThemeIcon('breakpoints-activate');
+            item.command = {
+                command: 'todoBoard.openPreview',
+                title: 'Open Board',
+                arguments: [uri],
+            };
+            return item;
+        });
     }
 }
 
 // ---------------- Open / Create File ----------------
 
-async function openPreview() {
-    if (!vscode.workspace.workspaceFolders) {
+async function openPreview(uri) {
+    if (!uri && !vscode.workspace.workspaceFolders) {
         vscode.window.showErrorMessage('Open a workspace first.');
         return;
     }
 
-    const root = vscode.workspace.workspaceFolders[0].uri;
-    const uri = vscode.Uri.joinPath(root, 'todo.json');
+    // If no URI passed (e.g. command palette), default to first workspace root's todo.board.json
+    if (!uri || !(uri instanceof vscode.Uri)) {
+        const root = vscode.workspace.workspaceFolders[0].uri;
+        uri = vscode.Uri.joinPath(root, 'todo.board.json');
+    }
 
-    // Auto-create todo.json if missing
+    // Auto-create only if it doesn't exist AND we are using the default path
+    // OR if we want to ensure the file exists before opening
     try {
         await vscode.workspace.fs.stat(uri);
     } catch {
+        // Only create if it was the default inferred path?
+        // Actually, if user provided a specific URI that doesn't exist, we probably shouldn't create it blindly,
+        // but for now, the only way to get a non-existent URI passed here is if we constructed it successfully above.
+        // If it came from the tree view, it exists (found by findFiles).
+        // So this catch block is mainly for the default case.
+
         const initialTodo = {
             columns: [
                 { id: 'Ideas', title: 'Ideas', cards: [] },
@@ -75,6 +121,51 @@ async function openPreview() {
         uri,
         'todoBoard.preview'
     );
+}
+
+async function createBoard() {
+    if (!vscode.workspace.workspaceFolders) {
+        vscode.window.showErrorMessage('Open a workspace first.');
+        return;
+    }
+
+    const name = await vscode.window.showInputBox({
+        prompt: 'Enter name for new board (will be saved as .board.json)',
+        placeHolder: 'e.g. "Project Alpha"',
+    });
+
+    if (!name) return;
+
+    // Simple sanitization
+    const safeName = name.replace(/[^a-z0-9\- ]/gi, '').trim();
+    const filename = (safeName || 'untitled') + '.board.json';
+
+    const root = vscode.workspace.workspaceFolders[0].uri;
+    const uri = vscode.Uri.joinPath(root, filename);
+
+    try {
+        await vscode.workspace.fs.stat(uri);
+        vscode.window.showErrorMessage('File already exists: ' + filename);
+        return;
+    } catch {
+        // OK to create
+    }
+
+    const initialTodo = {
+        columns: [
+            { id: 'todo', title: 'To Do', cards: [] },
+            { id: 'doing', title: 'Doing', cards: [] },
+            { id: 'done', title: 'Done', cards: [] },
+        ],
+    };
+
+    await vscode.workspace.fs.writeFile(
+        uri,
+        Buffer.from(JSON.stringify(initialTodo, null, 2))
+    );
+
+    // Provide small delay to let watcher update tree (optional)
+    await openPreview(uri);
 }
 
 // ---------------- Custom Editor ----------------
@@ -106,18 +197,75 @@ class TodoBoardEditor {
         });
 
         // Receive updates from board UI
-        panel.webview.onDidReceiveMessage((msg) => {
+        panel.webview.onDidReceiveMessage(async (msg) => {
+            const currentText = document.getText();
+            let data = {};
+            try {
+                data = JSON.parse(currentText);
+            } catch {
+                return;
+            }
+
+            let dirty = false;
+
             if (msg.type === 'update') {
+                data = msg.data;
+                dirty = true;
+            } else if (msg.type === 'delete-column') {
+                const index = data.columns.findIndex(
+                    (c) => c.id === msg.columnId
+                );
+                if (index !== -1) {
+                    data.columns.splice(index, 1);
+                    dirty = true;
+                }
+            } else if (msg.type === 'rename-column') {
+                const col = data.columns.find((c) => c.id === msg.columnId);
+                if (col) {
+                    col.title = msg.newTitle;
+                    dirty = true;
+                }
+            } else if (msg.type === 'add-column') {
+                const title = await vscode.window.showInputBox({
+                    prompt: 'New Column Title',
+                });
+                if (title) {
+                    const id =
+                        title.toLowerCase().replace(/[^a-z0-9]/g, '-') +
+                        '-' +
+                        Date.now();
+                    data.columns.push({ id, title, cards: [] });
+                    dirty = true;
+                    // Force refresh because we modified data based on input
+                    sendData();
+                }
+            } else if (msg.type === 'add-card') {
+                const title = await vscode.window.showInputBox({
+                    prompt: 'New Card Title',
+                });
+                if (title) {
+                    const col = data.columns.find((c) => c.id === msg.columnId);
+                    if (col) {
+                        const cardId = 'card-' + Date.now();
+                        col.cards.push({ id: cardId, title });
+                        dirty = true;
+                        // Force refresh
+                        sendData();
+                    }
+                }
+            }
+
+            if (dirty) {
                 const edit = new vscode.WorkspaceEdit();
                 edit.replace(
                     document.uri,
                     new vscode.Range(
                         document.positionAt(0),
-                        document.positionAt(document.getText().length)
+                        document.positionAt(currentText.length)
                     ),
-                    JSON.stringify(msg.data, null, 2)
+                    JSON.stringify(data, null, 2)
                 );
-                vscode.workspace.applyEdit(edit);
+                await vscode.workspace.applyEdit(edit);
             }
         });
 
@@ -135,31 +283,112 @@ class TodoBoardEditor {
     font-family: system-ui;
     background: var(--vscode-editor-background);
     color: var(--vscode-editor-foreground);
-    padding: 8px;
+    padding: 16px;
   }
   .board {
     display: flex;
-    gap: 8px;
+    gap: 12px;
+    align-items: flex-start;
     overflow-x: auto;
+    height: 100vh;
   }
   .column {
-    min-width: 220px;
+    min-width: 250px;
+    max-width: 250px;
     background: var(--vscode-sideBar-background);
-    padding: 8px;
+    padding: 12px;
     border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
   }
-  .column h3 {
-    margin: 0 0 8px;
+  .column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    cursor: default;
+  }
+  .column-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    flex-grow: 1;
+    margin-right: 8px;
+    border: 1px solid transparent;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+  .column-title:focus {
+    border-color: var(--vscode-focusBorder);
+    outline: none;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+  }
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 3px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    opacity: 1;
+  }
+  .cards-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 50px; /* drop target area */
   }
   .card {
     background: var(--vscode-editorWidget-background);
-    margin-bottom: 6px;
-    padding: 6px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
     border-radius: 4px;
     cursor: grab;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  .card:hover {
+    background: var(--vscode-list-hoverBackground);
   }
   .column.dragover {
     outline: 2px dashed var(--vscode-focusBorder);
+  }
+  .add-card-btn {
+    margin-top: 8px;
+    width: 100%;
+    padding: 6px;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .add-card-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+  }
+  .add-column-btn {
+    min-width: 250px;
+    height: 48px;
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--vscode-foreground);
+    border: 1px dashed var(--vscode-input-border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    transition: background 0.2s;
+  }
+  .add-column-btn:hover {
+    background: rgba(128, 128, 128, 0.2);
   }
 </style>
 </head>
@@ -181,12 +410,58 @@ class TodoBoardEditor {
 
   function render() {
     board.innerHTML = "";
-
+    
+    // Add columns
     state.columns.forEach(col => {
       const column = document.createElement("div");
       column.className = "column";
-      column.innerHTML = "<h3>" + col.title + "</h3>";
+      
+      // Header
+      const header = document.createElement("div");
+      header.className = "column-header";
+      
+      const title = document.createElement("div");
+      title.className = "column-title";
+      title.textContent = col.title;
+      title.contentEditable = true;
+      
+      // Save rename on blur or enter
+      const saveRename = () => {
+         const newTitle = title.textContent.trim();
+         if (newTitle && newTitle !== col.title) {
+             vscode.postMessage({ type: "rename-column", columnId: col.id, newTitle });
+         } else {
+             title.textContent = col.title; // revert
+         }
+      };
+      
+      title.onblur = saveRename;
+      title.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+              e.preventDefault();
+              title.blur();
+          }
+      };
 
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "icon-btn";
+      deleteBtn.innerHTML = "×";
+      deleteBtn.title = "Delete Column";
+      deleteBtn.onclick = () => {
+          if (confirm('Delete column "' + col.title + '"?')) {
+              vscode.postMessage({ type: "delete-column", columnId: col.id });
+          }
+      };
+
+      header.appendChild(title);
+      header.appendChild(deleteBtn);
+      column.appendChild(header);
+
+      // Cards Container
+      const cardsContainer = document.createElement("div");
+      cardsContainer.className = "cards-container";
+
+      // Drag events on column/container
       column.ondragover = e => {
         e.preventDefault();
         column.classList.add("dragover");
@@ -213,16 +488,38 @@ class TodoBoardEditor {
         el.textContent = card.title;
         el.draggable = true;
 
-        el.ondragstart = () => {
+        el.ondragstart = (e) => {
           dragged = card;
           fromColumn = col.id;
+          e.stopPropagation(); // prevent bubbling to column
         };
 
-        column.appendChild(el);
+        cardsContainer.appendChild(el);
       });
+      
+      column.appendChild(cardsContainer);
+
+      // Add Card Button
+      const addCardBtn = document.createElement("button");
+      addCardBtn.className = "add-card-btn";
+      addCardBtn.textContent = "+ Add a card";
+      addCardBtn.onclick = () => {
+          vscode.postMessage({ type: "add-card", columnId: col.id });
+      };
+      
+      column.appendChild(addCardBtn);
 
       board.appendChild(column);
     });
+
+    // Add New Column Button
+    const addColBtn = document.createElement("button");
+    addColBtn.className = "add-column-btn";
+    addColBtn.textContent = "+ Add New Column";
+    addColBtn.onclick = () => {
+        vscode.postMessage({ type: "add-column" });
+    };
+    board.appendChild(addColBtn);
   }
 
   function moveCard(fromId, toId, cardId) {
@@ -232,6 +529,8 @@ class TodoBoardEditor {
     const toCol = state.columns.find(c => c.id === toId);
 
     const index = fromCol.cards.findIndex(c => c.id === cardId);
+    if (index === -1) return;
+    
     const [card] = fromCol.cards.splice(index, 1);
     toCol.cards.push(card);
   }

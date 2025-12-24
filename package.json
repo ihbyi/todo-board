@@ -24,7 +24,7 @@
             "todoBoard": [
                 {
                     "id": "todoBoardLauncher",
-                    "name": "Open Board"
+                    "name": "My Boards"
                 }
             ]
         },
@@ -34,7 +34,7 @@
                 "displayName": "Todo Board",
                 "selector": [
                     {
-                        "filenamePattern": "todo.json"
+                        "filenamePattern": "*.board.json"
                     }
                 ]
             }
@@ -43,8 +43,22 @@
             {
                 "command": "todoBoard.openPreview",
                 "title": "Open Todo Board"
+            },
+            {
+                "command": "todoBoard.createBoard",
+                "title": "Create New Board",
+                "icon": "$(add)"
             }
-        ]
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "todoBoard.createBoard",
+                    "when": "view == todoBoardLauncher",
+                    "group": "navigation"
+                }
+            ]
+        }
     },
     "scripts": {
         "lint": "eslint .",
