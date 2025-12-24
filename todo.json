@@ -6,12 +6,12 @@
             "cards": [{ "id": "task-1", "title": "Test Todo" }]
         },
         {
-            "id": "in-progress",
+            "id": "In-Progress",
             "title": "In Progress",
             "cards": []
         },
         {
-            "id": "done",
+            "id": "Done",
             "title": "Done",
             "cards": []
         }
