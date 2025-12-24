@@ -2,7 +2,7 @@
 
 A simple, native Kanban-style todo board extension for Visual Studio Code. Manage your tasks visually right inside your editor.
 
-![Todo Board Preview](media/preview.png)
+![Todo Board Preview](https://github.com/ihbyi/todo-board/blob/main/media/preview.png)
 
 ## Features
 

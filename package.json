@@ -2,13 +2,17 @@
     "name": "todo-board",
     "displayName": "todo-board",
     "description": "Todo Board is a lightweight Trello-style task board built directly into VS Code.",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "engines": {
         "vscode": "^1.60.0"
     },
     "categories": [
         "Other"
     ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ihbyi/todo-board.git"
+    },
     "author": "ihbyi",
     "publisher": "ihbyi",
     "main": "./extension.js",
