@@ -1,8 +1,5 @@
 const vscode = require('vscode');
 
-/**
- * @param {vscode.ExtensionContext} context
- */
 function activate(context) {
     const boardProvider = new BoardProvider();
     vscode.window.registerTreeDataProvider('todoBoardLauncher', boardProvider);
@@ -33,8 +30,6 @@ function activate(context) {
         )
     );
 }
-
-// ---------------- Launcher ----------------
 
 class BoardProvider {
     constructor() {
@@ -72,31 +67,20 @@ class BoardProvider {
     }
 }
 
-// ---------------- Open / Create File ----------------
-
 async function openPreview(uri) {
     if (!uri && !vscode.workspace.workspaceFolders) {
         vscode.window.showErrorMessage('Open a workspace first.');
         return;
     }
 
-    // If no URI passed (e.g. command palette), default to first workspace root's todo.board.json
     if (!uri || !(uri instanceof vscode.Uri)) {
         const root = vscode.workspace.workspaceFolders[0].uri;
         uri = vscode.Uri.joinPath(root, 'todo.board.json');
     }
 
-    // Auto-create only if it doesn't exist AND we are using the default path
-    // OR if we want to ensure the file exists before opening
     try {
         await vscode.workspace.fs.stat(uri);
     } catch {
-        // Only create if it was the default inferred path?
-        // Actually, if user provided a specific URI that doesn't exist, we probably shouldn't create it blindly,
-        // but for now, the only way to get a non-existent URI passed here is if we constructed it successfully above.
-        // If it came from the tree view, it exists (found by findFiles).
-        // So this catch block is mainly for the default case.
-
         const initialTodo = {
             columns: [
                 { id: 'Ideas', title: 'Ideas', cards: [] },
@@ -111,7 +95,6 @@ async function openPreview(uri) {
         );
     }
 
-    // Open preview editor
     await vscode.commands.executeCommand(
         'vscode.openWith',
         uri,
@@ -132,7 +115,6 @@ async function createBoard() {
 
     if (!name) return;
 
-    // Simple sanitization
     const safeName = name.replace(/[^a-z0-9\- ]/gi, '').trim();
     const filename = (safeName || 'untitled') + '.board.json';
 
@@ -143,9 +125,7 @@ async function createBoard() {
         await vscode.workspace.fs.stat(uri);
         vscode.window.showErrorMessage('File already exists: ' + filename);
         return;
-    } catch {
-        // OK to create
-    }
+    } catch {}
 
     const initialTodo = {
         columns: [
@@ -160,11 +140,8 @@ async function createBoard() {
         Buffer.from(JSON.stringify(initialTodo, null, 2))
     );
 
-    // Provide small delay to let watcher update tree (optional)
     await openPreview(uri);
 }
-
-// ---------------- Custom Editor ----------------
 
 class TodoBoardEditor {
     resolveCustomTextEditor(document, panel) {
@@ -177,22 +154,17 @@ class TodoBoardEditor {
                     type: 'data',
                     data: JSON.parse(document.getText()),
                 });
-            } catch {
-                // invalid JSON, ignore
-            }
+            } catch {}
         };
 
-        // Initial render
         sendData();
 
-        // Update preview when JSON changes (AI / human)
         const docSub = vscode.workspace.onDidChangeTextDocument((e) => {
             if (e.document.uri.toString() === document.uri.toString()) {
                 sendData();
             }
         });
 
-        // Receive updates from board UI
         panel.webview.onDidReceiveMessage(async (msg) => {
             const currentText = document.getText();
             let data = {};
@@ -232,7 +204,6 @@ class TodoBoardEditor {
                         Date.now();
                     data.columns.push({ id, title, cards: [] });
                     dirty = true;
-                    // Force refresh because we modified data based on input
                     sendData();
                 }
             } else if (msg.type === 'add-card') {
@@ -245,7 +216,6 @@ class TodoBoardEditor {
                         const cardId = 'card-' + Date.now();
                         col.cards.push({ id: cardId, title });
                         dirty = true;
-                        // Force refresh
                         sendData();
                     }
                 }
@@ -287,7 +257,7 @@ class TodoBoardEditor {
                     JSON.stringify(data, null, 2)
                 );
                 await vscode.workspace.applyEdit(edit);
-                await document.save(); // Auto-save on change
+                await document.save();
             }
         });
 
@@ -327,7 +297,7 @@ class TodoBoardEditor {
     display: flex;
     flex-direction: column;
     max-height: 90vh;
-    user-select: none; /* Prevent text selection/ghost dragging */
+    user-select: none;
   }
 
   .column-header {
@@ -342,7 +312,7 @@ class TodoBoardEditor {
   .column-title {
     font-weight: bold;
     font-size: 1.1em;
-    flex: 1 1 auto; /* Grow and shrink, basis auto */
+    flex: 1 1 auto;
     margin-right: 8px;
     border: 1px solid transparent;
     padding: 2px 4px;
@@ -359,18 +329,18 @@ class TodoBoardEditor {
     color: var(--vscode-input-foreground);
   }
   .icon-btn {
-    flex-shrink: 0; /* Never shrink the button */
+    flex-shrink: 0;
     background: none;
     border: none;
     color: var(--vscode-icon-foreground);
     cursor: pointer;
     padding: 4px;
     border-radius: 3px;
-    opacity: 0; /* Hidden by default */
+    opacity: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2em; /* Bigger icon */
+    font-size: 1.2em;
     transition: opacity 0.2s;
   }
   .column:hover .icon-btn {
@@ -383,7 +353,7 @@ class TodoBoardEditor {
   .cards-container {
     flex-grow: 1;
     overflow-y: auto;
-    min-height: 50px; /* drop target area */
+    min-height: 50px;
   }
   .card {
     background: var(--vscode-editorWidget-background);
@@ -395,7 +365,7 @@ class TodoBoardEditor {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    group: card; /* for hover scoping if needed, though usually just .card:hover works */
+    group: card;
   }
   .card:hover {
     background: var(--vscode-list-hoverBackground);
@@ -466,7 +436,7 @@ class TodoBoardEditor {
 <script>
   const vscode = acquireVsCodeApi();
   let state = null;
-  let draggedType = null; // 'card' or 'column'
+  let draggedType = null;
 
   window.addEventListener("message", e => {
     if (e.data.type === "data") {
@@ -478,16 +448,13 @@ class TodoBoardEditor {
   function render() {
     board.innerHTML = "";
     
-    // Add columns
     state.columns.forEach((col, index) => {
       const column = document.createElement("div");
       column.className = "column";
-      // Allow dragging column via header, but we set draggable on column
       column.draggable = true;
       
       column.ondragstart = (e) => {
           if (e.target.closest('.card')) {
-              // It's a card drag, don't trigger column drag
               return;
           }
           dragged = col;
@@ -503,7 +470,6 @@ class TodoBoardEditor {
           document.querySelectorAll('.column').forEach(c => c.classList.remove('dragover'));
       };
 
-      // Header
       const header = document.createElement("div");
       header.className = "column-header";
       
@@ -512,13 +478,12 @@ class TodoBoardEditor {
       title.textContent = col.title;
       title.contentEditable = true;
       
-      // Save rename on blur or enter
       const saveRename = () => {
          const newTitle = title.textContent.trim();
          if (newTitle && newTitle !== col.title) {
              vscode.postMessage({ type: "rename-column", columnId: col.id, newTitle });
          } else {
-             title.textContent = col.title; // revert
+             title.textContent = col.title;
          }
       };
       
@@ -543,7 +508,6 @@ class TodoBoardEditor {
       column.appendChild(header);
       const cardsContainer = document.createElement("div");
       cardsContainer.className = "cards-container";
-      // Drag events on column/container
       column.ondragover = e => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
@@ -576,7 +540,7 @@ class TodoBoardEditor {
                 state.columns.find(c => c.id === col.id).cards.length;
 
             moveCard(fromColumn, col.id, dragged.id, index);
-            render(); // Immediate update
+            render();
             vscode.postMessage({ type: "update", data: state });
         }
         
@@ -599,7 +563,7 @@ class TodoBoardEditor {
         delBtn.innerHTML = "×";
         delBtn.title = "Delete Card";
         delBtn.onclick = (e) => {
-            e.stopPropagation(); // prevent drag start logic if clicked
+            e.stopPropagation();
             vscode.postMessage({ type: "delete-card", columnId: col.id, cardId: card.id });
         };
         el.appendChild(delBtn);
@@ -610,8 +574,8 @@ class TodoBoardEditor {
           dragged = card;
           draggedType = 'card';
           fromColumn = col.id;
-          el.classList.add('dragging'); // helper for getDragAfterElement
-          e.stopPropagation(); // prevent bubbling to column
+          el.classList.add('dragging');
+          e.stopPropagation();
         };
         
         el.ondragend = () => {
@@ -623,7 +587,6 @@ class TodoBoardEditor {
       
       column.appendChild(cardsContainer);
 
-      // Add Card Button (Only for first column)
       if (index === 0) {
         const addCardBtn = document.createElement("button");
         addCardBtn.className = "add-card-btn";
@@ -653,11 +616,10 @@ class TodoBoardEditor {
   let scrollLeft;
 
   board.addEventListener('mousedown', (e) => {
-    // Prevent drag-scroll if interacting with card/button/input OR dragging column (header)
     if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable || e.target.closest('.column-header')) {
         return;
     }
-    e.preventDefault(); // Stop native drag/selection
+    e.preventDefault();
     isDown = true;
     board.classList.add('active');
     startX = e.pageX - board.offsetLeft;
@@ -678,7 +640,7 @@ class TodoBoardEditor {
     if (!isDown) return;
     e.preventDefault();
     const x = e.pageX - board.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll speed multiplier
+    const walk = (x - startX) * 2;
     board.scrollLeft = scrollLeft - walk;
   });
 
@@ -704,36 +666,10 @@ class TodoBoardEditor {
     const fromIdx = fromCol.cards.findIndex(c => c.id === cardId);
     if (fromIdx === -1) return;
     
-    // Remove from old
     const [card] = fromCol.cards.splice(fromIdx, 1);
     
-    // If same column and moving down, we need to adjust index because of splice
     let finalIndex = toIndex;
     if (fromId === toId && fromIdx < toIndex) {
-        // If we removed from 0 and want to insert at 2, the old 2 became 1.
-        // But getDragAfterElement gives us the element *before* which we insert.
-        // Actually, let's keep it simple: splice first, then insert.
-        // If we insert *after* where we were, we just need to ensure index matches the NEW array state.
-        
-        // Wait, 'toIndex' was calculated based on DOM *before* removal?
-        // Yes, getDragAfterElement looks at current DOM.
-        // So if we are moving down:
-        // [A, B, C, D] -> Drag A below C.
-        // afterElement is D. Index of D is 3. 
-        // We remove A. Array is [B, C, D].
-        // We insert at 3? [B, C, D, A]. Correct.
-        // [A, B, C, D] -> Drag A below B.
-        // afterElement is C. Index of C is 2.
-        // Remove A. [B, C, D].
-        // Insert at 2? [B, C, A, D]. Correct.
-        
-        // However, we need to be careful if afterElement is null (end of list).
-        // toIndex would be length.
-        
-        // If fromIdx < toIndex, we effectively shift everything down, so the target position index shifts by -1?
-        // Actually, if we use splice to remove, the indices shift.
-        // If we computed index based on DOM *before* removal, then:
-        
         if (toIndex !== undefined && toIndex > fromIdx) {
              finalIndex = toIndex - 1;
         }
