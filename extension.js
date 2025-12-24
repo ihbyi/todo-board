@@ -271,6 +271,7 @@ class TodoBoardEditor {
                     JSON.stringify(data, null, 2)
                 );
                 await vscode.workspace.applyEdit(edit);
+                await document.save(); // Auto-save on change
             }
         });
 
@@ -312,9 +313,6 @@ class TodoBoardEditor {
     max-height: 90vh;
     user-select: none; /* Prevent text selection/ghost dragging */
   }
-  /* ... skipping unchanged CSS ... */
-
-/* [Skipping down to script section] */
 
   board.addEventListener('mousedown', (e) => {
     // Prevent drag-scroll if interacting with card/button/input
@@ -330,7 +328,8 @@ class TodoBoardEditor {
   .column-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start; /* Align to top in case title wraps, or center */
+    flex-wrap: nowrap;
     margin-bottom: 12px;
     cursor: default;
   }
@@ -339,9 +338,11 @@ class TodoBoardEditor {
     font-size: 1.1em;
     flex-grow: 1;
     margin-right: 8px;
+    /* word-break: break-all; */ 
     border: 1px solid transparent;
     padding: 2px 4px;
     border-radius: 3px;
+    min-width: 0; /* Important for flex child truncation/wrapping */
   }
   .column-title:focus {
     border-color: var(--vscode-focusBorder);
@@ -505,12 +506,10 @@ class TodoBoardEditor {
       header.appendChild(title);
       header.appendChild(deleteBtn);
       column.appendChild(header);
-
-      // Cards Container
       const cardsContainer = document.createElement("div");
       cardsContainer.className = "cards-container";
 
-      // Drag events on column/container
+
       column.ondragover = e => {
         e.preventDefault();
         column.classList.add("dragover");
@@ -578,7 +577,6 @@ class TodoBoardEditor {
       board.appendChild(column);
     });
 
-    // Add New Column Button
     const addColBtn = document.createElement("button");
     addColBtn.className = "add-column-btn";
     addColBtn.textContent = "+ Add New Column";
@@ -588,13 +586,12 @@ class TodoBoardEditor {
     board.appendChild(addColBtn);
   }
 
-  // Drag to scroll logic
   let isDown = false;
   let startX;
   let scrollLeft;
 
   board.addEventListener('mousedown', (e) => {
-    // Prevent drag-scroll if interacting with card/button/input
+
     if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable) {
         return;
     }
