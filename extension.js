@@ -295,7 +295,11 @@ class TodoBoardEditor {
     gap: 12px;
     align-items: flex-start;
     overflow-x: auto;
-    height: 100vh;
+    padding-bottom: 24px;
+    cursor: grab;
+  }
+  .board.active {
+    cursor: grabbing;
   }
   .column {
     min-width: 250px;
@@ -567,6 +571,40 @@ class TodoBoardEditor {
     };
     board.appendChild(addColBtn);
   }
+
+  // Drag to scroll logic
+  let isDown = false;
+  let startX;
+  let scrollLeft;
+
+  board.addEventListener('mousedown', (e) => {
+    // Prevent drag-scroll if interacting with card/button/input
+    if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable) {
+        return;
+    }
+    isDown = true;
+    board.classList.add('active');
+    startX = e.pageX - board.offsetLeft;
+    scrollLeft = board.scrollLeft;
+  });
+
+  board.addEventListener('mouseleave', () => {
+    isDown = false;
+    board.classList.remove('active');
+  });
+
+  board.addEventListener('mouseup', () => {
+    isDown = false;
+    board.classList.remove('active');
+  });
+
+  board.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - board.offsetLeft;
+    const walk = (x - startX) * 2; // Scroll speed multiplier
+    board.scrollLeft = scrollLeft - walk;
+  });
 
   function moveCard(fromId, toId, cardId) {
     if (fromId === toId) return;
