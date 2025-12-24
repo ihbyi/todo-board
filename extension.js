@@ -314,35 +314,27 @@ class TodoBoardEditor {
     user-select: none; /* Prevent text selection/ghost dragging */
   }
 
-  board.addEventListener('mousedown', (e) => {
-    // Prevent drag-scroll if interacting with card/button/input
-    if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable) {
-        return;
-    }
-    e.preventDefault(); // Stop native drag/selection
-    isDown = true;
-    board.classList.add('active');
-    startX = e.pageX - board.offsetLeft;
-    scrollLeft = board.scrollLeft;
-  });
   .column-header {
     display: flex;
+    flex-direction: row;
     justify-content: space-between;
-    align-items: flex-start; /* Align to top in case title wraps, or center */
-    flex-wrap: nowrap;
+    align-items: center; 
     margin-bottom: 12px;
     cursor: default;
+    width: 100%;
   }
   .column-title {
     font-weight: bold;
     font-size: 1.1em;
-    flex-grow: 1;
+    flex: 1 1 auto; /* Grow and shrink, basis auto */
     margin-right: 8px;
-    /* word-break: break-all; */ 
     border: 1px solid transparent;
     padding: 2px 4px;
     border-radius: 3px;
-    min-width: 0; /* Important for flex child truncation/wrapping */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .column-title:focus {
     border-color: var(--vscode-focusBorder);
@@ -351,6 +343,7 @@ class TodoBoardEditor {
     color: var(--vscode-input-foreground);
   }
   .icon-btn {
+    flex-shrink: 0; /* Never shrink the button */
     background: none;
     border: none;
     color: var(--vscode-icon-foreground);
@@ -591,10 +584,11 @@ class TodoBoardEditor {
   let scrollLeft;
 
   board.addEventListener('mousedown', (e) => {
-
+    // Prevent drag-scroll if interacting with card/button/input
     if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable) {
         return;
     }
+    e.preventDefault(); // Stop native drag/selection
     isDown = true;
     board.classList.add('active');
     startX = e.pageX - board.offsetLeft;
