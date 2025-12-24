@@ -416,8 +416,15 @@ class TodoBoardEditor {
       opacity: 1;
       color: var(--vscode-errorForeground);
   }
+  .card.dragging {
+    opacity: 0.5;
+    background: var(--vscode-editor-selectionBackground);
+  }
   .column.dragover {
     outline: 2px dashed var(--vscode-focusBorder);
+  }
+  .column.card-dragover {
+      background: var(--vscode-editor-inactiveSelectionBackground);
   }
   .add-card-btn {
     width: 100%;
@@ -539,19 +546,22 @@ class TodoBoardEditor {
       // Drag events on column/container
       column.ondragover = e => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
         if (draggedType === 'column' && dragged.id !== col.id) {
              column.classList.add("dragover");
-        } else if (draggedType === 'card') {
-             column.classList.add("dragover");
+        } else if (draggedType === 'card' && fromColumn !== col.id) {
+             column.classList.add("card-dragover"); 
         }
       };
 
       column.ondragleave = () => {
         column.classList.remove("dragover");
+        column.classList.remove("card-dragover");
       };
 
       column.ondrop = () => {
         column.classList.remove("dragover");
+        column.classList.remove("card-dragover");
         if (!dragged) return;
 
         if (draggedType === 'column') {
@@ -559,7 +569,13 @@ class TodoBoardEditor {
                  vscode.postMessage({ type: "move-column", fromId: dragged.id, toId: col.id });
              }
         } else if (draggedType === 'card') {
-            moveCard(fromColumn, col.id, dragged.id);
+            const afterElement = getDragAfterElement(cardsContainer, e.clientY);
+            const index = afterElement ? 
+                state.columns.find(c => c.id === col.id).cards.findIndex(c => c.id === afterElement.dataset.id) : 
+                state.columns.find(c => c.id === col.id).cards.length;
+
+            moveCard(fromColumn, col.id, dragged.id, index);
+            render(); // Immediate update
             vscode.postMessage({ type: "update", data: state });
         }
         
@@ -571,6 +587,7 @@ class TodoBoardEditor {
       col.cards.forEach(card => {
         const el = document.createElement("div");
         el.className = "card";
+        el.dataset.id = card.id;
         
         const span = document.createElement("span");
         span.textContent = card.title;
@@ -592,7 +609,12 @@ class TodoBoardEditor {
           dragged = card;
           draggedType = 'card';
           fromColumn = col.id;
+          el.classList.add('dragging'); // helper for getDragAfterElement
           e.stopPropagation(); // prevent bubbling to column
+        };
+        
+        el.ondragend = () => {
+             el.classList.remove('dragging');
         };
 
         cardsContainer.appendChild(el);
@@ -659,17 +681,66 @@ class TodoBoardEditor {
     board.scrollLeft = scrollLeft - walk;
   });
 
-  function moveCard(fromId, toId, cardId) {
-    if (fromId === toId) return;
 
+  function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.card:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  function moveCard(fromId, toId, cardId, toIndex) {
     const fromCol = state.columns.find(c => c.id === fromId);
     const toCol = state.columns.find(c => c.id === toId);
 
-    const index = fromCol.cards.findIndex(c => c.id === cardId);
-    if (index === -1) return;
+    const fromIdx = fromCol.cards.findIndex(c => c.id === cardId);
+    if (fromIdx === -1) return;
     
-    const [card] = fromCol.cards.splice(index, 1);
-    toCol.cards.push(card);
+    // Remove from old
+    const [card] = fromCol.cards.splice(fromIdx, 1);
+    
+    // If same column and moving down, we need to adjust index because of splice
+    let finalIndex = toIndex;
+    if (fromId === toId && fromIdx < toIndex) {
+        // If we removed from 0 and want to insert at 2, the old 2 became 1.
+        // But getDragAfterElement gives us the element *before* which we insert.
+        // Actually, let's keep it simple: splice first, then insert.
+        // If we insert *after* where we were, we just need to ensure index matches the NEW array state.
+        
+        // Wait, 'toIndex' was calculated based on DOM *before* removal?
+        // Yes, getDragAfterElement looks at current DOM.
+        // So if we are moving down:
+        // [A, B, C, D] -> Drag A below C.
+        // afterElement is D. Index of D is 3. 
+        // We remove A. Array is [B, C, D].
+        // We insert at 3? [B, C, D, A]. Correct.
+        // [A, B, C, D] -> Drag A below B.
+        // afterElement is C. Index of C is 2.
+        // Remove A. [B, C, D].
+        // Insert at 2? [B, C, A, D]. Correct.
+        
+        // However, we need to be careful if afterElement is null (end of list).
+        // toIndex would be length.
+        
+        // If fromIdx < toIndex, we effectively shift everything down, so the target position index shifts by -1?
+        // Actually, if we use splice to remove, the indices shift.
+        // If we computed index based on DOM *before* removal, then:
+        
+        if (toIndex !== undefined && toIndex > fromIdx) {
+             finalIndex = toIndex - 1;
+        }
+    }
+    
+    if (finalIndex === undefined) finalIndex = toCol.cards.length;
+
+    toCol.cards.splice(finalIndex, 0, card);
   }
 </script>
 </body>
