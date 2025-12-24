@@ -1,33 +1,62 @@
 {
-  "name": "todo-board",
-  "displayName": "todo-board",
-  "description": "Todo Board is a lightweight Trello-style task board built directly into VS Code.",
-  "version": "0.0.1",
-  "engines": {
-    "vscode": "^1.107.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [],
-  "main": "./extension.js",
-  "contributes": {
-    "commands": [{
-      "command": "todo-board.helloWorld",
-      "title": "Hello World"
-    }]
-  },
-  "scripts": {
-    "lint": "eslint .",
-    "pretest": "npm run lint",
-    "test": "vscode-test"
-  },
-  "devDependencies": {
-    "@types/vscode": "^1.107.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "eslint": "^9.39.1",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
-  }
+    "name": "todo-board",
+    "displayName": "todo-board",
+    "description": "Todo Board is a lightweight Trello-style task board built directly into VS Code.",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "todoBoard",
+                    "title": "Todo Board",
+                    "icon": "media/icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "todoBoard": [
+                {
+                    "id": "todoBoardLauncher",
+                    "name": "Open Board"
+                }
+            ]
+        },
+        "customEditors": [
+            {
+                "viewType": "todoBoard.preview",
+                "displayName": "Todo Board",
+                "selector": [
+                    {
+                        "filenamePattern": "todo.json"
+                    }
+                ]
+            }
+        ],
+        "commands": [
+            {
+                "command": "todoBoard.openPreview",
+                "title": "Open Todo Board"
+            }
+        ]
+    },
+    "scripts": {
+        "lint": "eslint .",
+        "pretest": "npm run lint",
+        "test": "vscode-test"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.107.0",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "22.x",
+        "eslint": "^9.39.1",
+        "@vscode/test-cli": "^0.0.12",
+        "@vscode/test-electron": "^2.5.2"
+    }
 }
