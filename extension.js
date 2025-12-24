@@ -310,7 +310,23 @@ class TodoBoardEditor {
     display: flex;
     flex-direction: column;
     max-height: 90vh;
+    user-select: none; /* Prevent text selection/ghost dragging */
   }
+  /* ... skipping unchanged CSS ... */
+
+/* [Skipping down to script section] */
+
+  board.addEventListener('mousedown', (e) => {
+    // Prevent drag-scroll if interacting with card/button/input
+    if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable) {
+        return;
+    }
+    e.preventDefault(); // Stop native drag/selection
+    isDown = true;
+    board.classList.add('active');
+    startX = e.pageX - board.offsetLeft;
+    scrollLeft = board.scrollLeft;
+  });
   .column-header {
     display: flex;
     justify-content: space-between;
