@@ -127,7 +127,7 @@ async function createBoard() {
 
     const name = await vscode.window.showInputBox({
         prompt: 'Enter name for new board (will be saved as .board.json)',
-        placeHolder: 'e.g. "Project Alpha"',
+        placeHolder: 'e.g. "Plan"',
     });
 
     if (!name) return;
@@ -257,6 +257,22 @@ class TodoBoardEditor {
                         col.cards.splice(idx, 1);
                         dirty = true;
                     }
+                }
+            } else if (msg.type === 'move-column') {
+                const fromIndex = data.columns.findIndex(
+                    (c) => c.id === msg.fromId
+                );
+                const toIndex = data.columns.findIndex(
+                    (c) => c.id === msg.toId
+                );
+                if (
+                    fromIndex !== -1 &&
+                    toIndex !== -1 &&
+                    fromIndex !== toIndex
+                ) {
+                    const [col] = data.columns.splice(fromIndex, 1);
+                    data.columns.splice(toIndex, 0, col);
+                    dirty = true;
                 }
             }
 
@@ -443,8 +459,7 @@ class TodoBoardEditor {
 <script>
   const vscode = acquireVsCodeApi();
   let state = null;
-  let dragged = null;
-  let fromColumn = null;
+  let draggedType = null; // 'card' or 'column'
 
   window.addEventListener("message", e => {
     if (e.data.type === "data") {
@@ -460,7 +475,27 @@ class TodoBoardEditor {
     state.columns.forEach((col, index) => {
       const column = document.createElement("div");
       column.className = "column";
+      // Allow dragging column via header, but we set draggable on column
+      column.draggable = true;
       
+      column.ondragstart = (e) => {
+          if (e.target.closest('.card')) {
+              // It's a card drag, don't trigger column drag
+              return;
+          }
+          dragged = col;
+          draggedType = 'column';
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => column.style.opacity = '0.5', 0);
+      };
+      
+      column.ondragend = () => {
+          column.style.opacity = '1';
+          dragged = null;
+          draggedType = null;
+          document.querySelectorAll('.column').forEach(c => c.classList.remove('dragover'));
+      };
+
       // Header
       const header = document.createElement("div");
       header.className = "column-header";
@@ -501,11 +536,14 @@ class TodoBoardEditor {
       column.appendChild(header);
       const cardsContainer = document.createElement("div");
       cardsContainer.className = "cards-container";
-
-
+      // Drag events on column/container
       column.ondragover = e => {
         e.preventDefault();
-        column.classList.add("dragover");
+        if (draggedType === 'column' && dragged.id !== col.id) {
+             column.classList.add("dragover");
+        } else if (draggedType === 'card') {
+             column.classList.add("dragover");
+        }
       };
 
       column.ondragleave = () => {
@@ -516,11 +554,18 @@ class TodoBoardEditor {
         column.classList.remove("dragover");
         if (!dragged) return;
 
-        moveCard(fromColumn, col.id, dragged.id);
-        vscode.postMessage({ type: "update", data: state });
-
+        if (draggedType === 'column') {
+             if (dragged.id !== col.id) {
+                 vscode.postMessage({ type: "move-column", fromId: dragged.id, toId: col.id });
+             }
+        } else if (draggedType === 'card') {
+            moveCard(fromColumn, col.id, dragged.id);
+            vscode.postMessage({ type: "update", data: state });
+        }
+        
         dragged = null;
         fromColumn = null;
+        draggedType = null;
       };
 
       col.cards.forEach(card => {
@@ -545,6 +590,7 @@ class TodoBoardEditor {
 
         el.ondragstart = (e) => {
           dragged = card;
+          draggedType = 'card';
           fromColumn = col.id;
           e.stopPropagation(); // prevent bubbling to column
         };
@@ -584,8 +630,8 @@ class TodoBoardEditor {
   let scrollLeft;
 
   board.addEventListener('mousedown', (e) => {
-    // Prevent drag-scroll if interacting with card/button/input
-    if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable) {
+    // Prevent drag-scroll if interacting with card/button/input OR dragging column (header)
+    if (e.target.closest('.card') || e.target.tagName === 'BUTTON' || e.target.isContentEditable || e.target.closest('.column-header')) {
         return;
     }
     e.preventDefault(); // Stop native drag/selection
